@@ -1,8 +1,38 @@
+using AplicacaoTeste;
+using Orleans.Hosting;
+using StackExchange.Redis;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+
+builder.Host.UseOrleans(siloBuilder =>
+{
+    siloBuilder.UseLocalhostClustering();
+
+
+    siloBuilder.AddRedisGrainStorage("RedisStore",
+        configureOptions: options =>
+        {
+            options.ConfigurationOptions = new ConfigurationOptions();
+            options.ConfigurationOptions.EndPoints.Add("redis:6379"); // Configure a conexão com o Redis
+            // Outras opções de configuração do Redis podem ser adicionadas aqui 
+        });
+
+    
+    // Add Orleans Dashboard
+    siloBuilder.UseDashboard(options =>
+    {
+        /* Dashboard options can be configured here */
+    });
+});
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddSignalR(); // Adiciona o serviço SignalR
 
 var app = builder.Build();
 
@@ -32,6 +62,42 @@ app.MapGet("/weatherforecast", () =>
         return forecast;
     })
     .WithName("GetWeatherForecast");
+
+app.MapGet("/hello/{name}", async (string name, IClusterClient client) =>
+{
+    var grain = client.GetGrain<IUserConnectionGrain>(Guid.NewGuid());
+    return await grain.SayHello($"Hello from {name}!");
+});
+
+
+app.MapGet("/Teste", async ( IClusterClient client) =>
+{
+    var ids = new List<Guid>();
+    for (int j = 0; j < 5; j++)
+    {
+        var id = Guid.NewGuid();
+        var grain = client.GetGrain<IUserConnectionGrain>(id);
+        for (int i = 0; i < 5000; i++)
+        {
+            await grain.SayHello($"Hello player {i} to room {j}!");
+        }
+        ids.Add(id);
+    }
+
+    return ids;
+});
+
+app.MapGet("/Teste/{id}", async (Guid id, IClusterClient client) =>
+{
+    var grain = client.GetGrain<IUserConnectionGrain>(id);
+    return await grain.GetConnectedUsers();
+});
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.MapHub<ChatHub>("/chathub"); // Mapeia o Hub SignalR
+
 
 app.Run();
 
