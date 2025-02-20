@@ -1,0 +1,33 @@
+﻿services:
+  aplicacaoteste.host:
+    image: aplicacaoteste.host
+    build:
+      context: .
+      dockerfile: AplicacaoTeste.Host/Dockerfile
+    ports:
+      - "8080:8070" # Maps host port 8080 to container port 80 (adjust as needed)
+    depends_on:
+      - redis
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://*:8070
+    networks:
+      - app-network
+
+  redis:
+    image: "redis/redis-stack:latest"
+    ports:
+      - "6379:6379" # Optional: Expose Redis port if needed for external access
+      - "6381:8001" 
+    networks:
+      - app-network
+    volumes:
+      - redis_data:/data #Persist Redis data
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
